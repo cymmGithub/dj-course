@@ -38,7 +38,6 @@ except FileNotFoundError:
 raw_sentences = []
 print("Wczytywanie tekstu z plików...")
 print(f"Liczba plików do wczytania: {len(files)}")
-
 for file in files:
     try:
         with open(file, 'r', encoding='utf-8') as f:
@@ -116,7 +115,7 @@ sentence_lookup = raw_sentences # Używamy listy zdań prosto z wczytywania korp
 
 
 # Tokenizacja nowego zdania
-new_tokens = tokenizer.encode(new_sentence).tokensZ
+new_tokens = tokenizer.encode(new_sentence).tokens
 
 # 2. Generowanie wektora dla nowego zdania
 inferred_vector = loaded_model.infer_vector(new_tokens, epochs=loaded_model.epochs)

@@ -13,7 +13,7 @@ from corpora import CORPORA_FILES
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
 # --- KONFIGURACJA ŚCIEŻEK I PARAMETRÓW ---
-MODEL_NAME = 'intfloat/multilingual-e5-small' 
+MODEL_NAME = 'intfloat/multilingual-e5-small'
 OUTPUT_EMBEDDINGS_FILE = "sbert_sentence_embeddings.npy"
 
 files = CORPORA_FILES["ALL"]
@@ -38,7 +38,7 @@ def load_raw_sentences(file_list):
 
     if not raw_sentences:
         raise ValueError("Korpus danych jest pusty lub nie został wczytany.")
-    
+
     return raw_sentences
 
 try:
@@ -59,7 +59,7 @@ if os.path.exists(OUTPUT_EMBEDDINGS_FILE):
         sentence_embeddings = np.load(OUTPUT_EMBEDDINGS_FILE)
         end_time = time.time()
         print(f"Wektory załadowane pomyślnie w {end_time - start_time:.2f} sekundy. Pominięto kodowanie.")
-        
+
     except Exception as e:
         # W przypadku błędu wczytywania (np. uszkodzony plik), przejdź do generowania
         print(f"BŁĄD podczas ładowania pliku .npy: {e}. Przetwarzam korpus od nowa.")
@@ -84,13 +84,13 @@ if needs_generation:
     start_time = time.time()
     # Metoda .encode() automatycznie tokenizuje i generuje wektory
     sentence_embeddings = model_sbert.encode(
-        raw_sentences, 
+        raw_sentences,
         show_progress_bar=True,
         convert_to_numpy=True
     )
     end_time = time.time()
     print(f"Generowanie zakończone w {end_time - start_time:.2f} sekundy.")
-    
+
     # Zapisanie nowo utworzonych wektorów do pliku
     np.save(OUTPUT_EMBEDDINGS_FILE, sentence_embeddings)
     print(f"Wektory zdań zapisane jako: '{OUTPUT_EMBEDDINGS_FILE}'.")
@@ -123,7 +123,7 @@ print(f"\n--- Wyszukiwanie podobieństwa do: '{query_sentence}' ---")
 
 # Generowanie wektora dla zapytania
 query_embedding = model_sbert.encode(
-    [query_sentence], 
+    [query_sentence],
     convert_to_numpy=True
 )
 

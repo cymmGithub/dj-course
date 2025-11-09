@@ -5,6 +5,8 @@ from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 import os
 import glob
 import time
+import pickle
+import hashlib
 from corpora import CORPORA_FILES
 import spacy
 
@@ -19,7 +21,7 @@ OUTPUT_MODEL_FILE = "doc2vec_model_spacy.model"
 OUTPUT_SENTENCE_MAP = "doc2vec_model_sentence_map_spacy.json"
 
 # Parametry treningu Doc2Vec
-VECTOR_LENGTH = 300
+VECTOR_LENGTH = 100
 WINDOW_SIZE = 5
 MIN_COUNT = 4
 WORKERS = 10
@@ -85,35 +87,107 @@ def tokenize_with_spacy(text):
     ]
     return tokens
 
-# Konwersja na listę tokenów UŻYWAJĄC SPACY + LEMMATYZACJI
+# --- CACHE MECHANISM ---
+def generate_corpus_hash(sentences):
+    """Generuje hash SHA256 korpusu do wykrywania zmian."""
+    # Użyj pierwsze 1000 zdań jako reprezentacja + liczba zdań
+    corpus_str = "\n".join(sentences[:1000]) + f"\n__TOTAL__{len(sentences)}"
+    return hashlib.sha256(corpus_str.encode('utf-8')).hexdigest()[:16]
+
+CACHE_DIR = ".cache"
+os.makedirs(CACHE_DIR, exist_ok=True)
+
+corpus_hash = generate_corpus_hash(raw_sentences)
+cache_file = os.path.join(CACHE_DIR, f"lemmatized_spacy_{corpus_hash}.pkl")
+cache_meta_file = os.path.join(CACHE_DIR, f"lemmatized_spacy_{corpus_hash}_meta.json")
+
+# Konwersja na listę tokenów UŻYWAJĄC SPACY + LEMMATYZACJI (z CACHE)
 print(f"\nTokenizacja {len(raw_sentences)} zdań używając spaCy + lemmatyzacja...")
-print("(To może potrwać kilka minut...)")
-start_tokenization = time.time()
 
-tokenized_sentences = []
-batch_size = 1000  # Przetwarzanie w partiach dla szybkości
+tokenized_sentences = None
 
-for i in range(0, len(raw_sentences), batch_size):
-    batch = raw_sentences[i:i+batch_size]
-    # Wykorzystanie pipe() dla wydajności
-    for doc in nlp.pipe(batch, n_process=1, batch_size=50):
-        tokens = [
-            token.lemma_.lower()
-            for token in doc
-            if not token.is_punct and not token.is_space and token.text.strip()
-        ]
-        tokenized_sentences.append(tokens)
+# Sprawdź cache
+if os.path.exists(cache_file) and os.path.exists(cache_meta_file):
+    try:
+        # Wczytaj metadata
+        with open(cache_meta_file, 'r') as f:
+            meta = json.load(f)
 
-    # Postęp
-    if (i + batch_size) % 10000 == 0:
-        print(f"  Przetworzone: {min(i + batch_size, len(raw_sentences)):,} / {len(raw_sentences):,} zdań")
+        # Sprawdź czy liczba zdań się zgadza
+        if meta.get('num_sentences') == len(raw_sentences):
+            print(f"✓ Znaleziono cache lemmatyzacji: {os.path.basename(cache_file)}")
+            print("  Ładowanie z cache...")
 
-end_tokenization = time.time()
+            start_load = time.time()
+            with open(cache_file, 'rb') as f:
+                tokenized_sentences = pickle.load(f)
+            end_load = time.time()
+
+            print(f"✓ Załadowano {len(tokenized_sentences):,} zdań z cache w {end_load - start_load:.2f}s")
+            print(f"  💡 Oszczędność czasu: ~{meta.get('tokenization_time', 0):.0f}s!")
+        else:
+            print(f"⚠️  Cache nieaktualny (inna liczba zdań: {meta.get('num_sentences')} vs {len(raw_sentences)})")
+            print("  Re-tokenizacja...")
+    except Exception as e:
+        print(f"⚠️  Błąd podczas ładowania cache: {e}")
+        print("  Re-tokenizacja...")
+else:
+    print("  Brak cache. Wykonuję lemmatyzację...")
+
+# Jeśli brak cache lub nieaktualny - lemmatyzuj
+if tokenized_sentences is None:
+    print("(To może potrwać kilka minut...)")
+    start_tokenization = time.time()
+
+    tokenized_sentences = []
+    batch_size = 1000  # Przetwarzanie w partiach dla szybkości
+
+    for i in range(0, len(raw_sentences), batch_size):
+        batch = raw_sentences[i:i+batch_size]
+        # Wykorzystanie pipe() dla wydajności
+        for doc in nlp.pipe(batch, n_process=1, batch_size=50):
+            tokens = [
+                token.lemma_.lower()
+                for token in doc
+                if not token.is_punct and not token.is_space and token.text.strip()
+            ]
+            tokenized_sentences.append(tokens)
+
+        # Postęp
+        if (i + batch_size) % 10000 == 0:
+            print(f"  Przetworzone: {min(i + batch_size, len(raw_sentences)):,} / {len(raw_sentences):,} zdań")
+
+    end_tokenization = time.time()
+    tokenization_time = end_tokenization - start_tokenization
+
+    # Zapisz do cache
+    print(f"\n💾 Zapisywanie cache lemmatyzacji...")
+    try:
+        with open(cache_file, 'wb') as f:
+            pickle.dump(tokenized_sentences, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        # Zapisz metadata
+        meta = {
+            'num_sentences': len(raw_sentences),
+            'tokenization_time': tokenization_time,
+            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'corpus_hash': corpus_hash,
+            'spacy_model': 'pl_core_news_sm'
+        }
+        with open(cache_meta_file, 'w') as f:
+            json.dump(meta, f, indent=2)
+
+        cache_size_mb = os.path.getsize(cache_file) / (1024 * 1024)
+        print(f"✓ Cache zapisany: {os.path.basename(cache_file)} ({cache_size_mb:.1f} MB)")
+        print(f"  💡 Następne uruchomienia będą ~{tokenization_time:.0f}s szybsze!")
+    except Exception as e:
+        print(f"⚠️  Nie udało się zapisać cache: {e}")
+        print("  (Nie wpływa to na trening - kontynuuję)")
 
 # Statystyki tokenizacji spaCy
 total_tokens = sum(len(tokens) for tokens in tokenized_sentences)
 avg_tokens = total_tokens / len(tokenized_sentences) if tokenized_sentences else 0
-print(f"\n✓ Tokenizacja spaCy zakończona w {end_tokenization - start_tokenization:.2f}s:")
+print(f"\n✓ Tokenizacja spaCy zakończona:")
 print(f"  ├─ Łączna liczba tokenów (po lemmatyzacji): {total_tokens:,}")
 print(f"  └─ Średnia długość sekwencji: {avg_tokens:.1f} tokenów")
 
@@ -178,3 +252,7 @@ print("   • Różne formy tego samego słowa są redukowane do formy podstawow
 print("   • Przykład: 'książki', 'książką', 'książek' → 'książka'")
 print("   • Interpunkcja jest usuwana automatycznie")
 print("   • Wszystkie tokeny są konwertowane do małych liter")
+print("\n💾 CACHE INFO:")
+print(f"   • Cache zapisany w: {CACHE_DIR}/")
+print(f"   • Aby wyczyścić cache: usuń folder {CACHE_DIR}/")
+print(f"   • Następne uruchomienie: ~instant lemmatization! 🚀")
