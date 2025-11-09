@@ -3,3 +3,6 @@ numpy
 scipy
 gensim
 sentence-transformers
+rich
+matplotlib
+spacy
