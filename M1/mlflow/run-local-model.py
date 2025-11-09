@@ -13,7 +13,7 @@ LLAMA_CPP_SERVER = {
 }
 OLLAMA_SERVER = {
     "engine": "ollama",
-    "model": "gemma3:27b", # 🔥🔥🔥 tu JEST różnica, bo ollama ma wiele modeli, a llama-cpp ma tylko 1 model
+    "model": "llama3.2", # 🔥🔥🔥 tu JEST różnica, bo ollama ma wiele modeli, a llama-cpp ma tylko 1 model
     "base_url": "http://localhost:11434/v1",
 }
 SERVER = OLLAMA_SERVER

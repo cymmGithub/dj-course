@@ -14,9 +14,9 @@ writer = SummaryWriter(LOG_DIR)
 class SimpleNN(nn.Module):
     def __init__(self):
         super(SimpleNN, self).__init__()
-        self.fc1 = nn.Linear(2, 100)
-        self.fc2 = nn.Linear(100, 100)
-        self.fc3 = nn.Linear(100, 1)
+        self.fc1 = nn.Linear(2, 4)
+        self.fc2 = nn.Linear(4, 8)
+        self.fc3 = nn.Linear(8, 1)
 
     def forward(self, x):
         x = torch.relu(self.fc1(x))
@@ -81,7 +81,7 @@ for epoch in range(NUM_EPOCHS):
     if (epoch + 1) % 5 == 0:
         # Visualising Loss (on a scalar plot)
         writer.add_scalar('Loss', loss.item(), epoch)
-        
+
         # Wizualizacja Gradientów (na wykresach histogramowych)
         # Zapis gradientów po loss.backward()
         if model.fc1.weight.grad is not None:
